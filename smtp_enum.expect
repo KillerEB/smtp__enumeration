@@ -1,0 +1,40 @@
+#!/usr/bin/expect -f
+
+# Usage: ./smtp_enum.expect <host> <username file>
+
+set timeout 20
+set host [lindex $argv 0]
+set file [lindex $argv 1]
+
+# Open the file and handle each line
+set fh [open $file r]
+set existing_users [list]  ;# Initialize list to store existing users
+
+# Start telnet session
+spawn telnet $host 25
+expect "220"  # Wait for the SMTP greeting
+
+# Send HELO command and wait for a response
+send "HELO localhost\r"
+expect "250"
+
+# Process each username
+while {[gets $fh line] >= 0} {
+    # Verify user
+    send "VRFY $line\r"
+    expect {
+        "252" {
+            puts "$line: exists"
+            lappend existing_users $line  ;# Add user to the list
+        }
+        "550" {
+            puts "$line: does not exist"
+        }
+        "421" {
+            spawn telnet $host 25
+            expect "220"
+            send "HELO localhost\r"
+            expect "250"
+        }
+    }
+}
